@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="장비와 장비의 연결 관계를 그림으로 정리하는 도구. iOS 앱 망구성도와 같은 파일을 씁니다.">
+<meta name="color-scheme" content="light dark">
+<title>망구성도</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,
+  <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'>
+  <g fill='none' stroke='%231F3A5F' stroke-width='7' stroke-linecap='round'>
+  <path d='M64 64 L64 20'/><path d='M64 64 L102 86'/><path d='M64 64 L26 86'/>
+  <path d='M64 20 L102 42 L102 86 L64 108 L26 86 L26 42 Z'/></g>
+  <g fill='%232E86DE'><circle cx='64' cy='64' r='11'/><circle cx='64' cy='20' r='8'/>
+  <circle cx='102' cy='42' r='8'/><circle cx='102' cy='86' r='8'/>
+  <circle cx='64' cy='108' r='8'/><circle cx='26' cy='86' r='8'/>
+  <circle cx='26' cy='42' r='8'/></g></svg>">
+</head>
+<body>
+
+<!-- ═══════════════════════════ 도면 목록 -->
+<div class="screen" id="screen-list">
+  <div class="topbar">
+    <h1>망구성도</h1>
+    <span class="spacer"></span>
+    <button class="btn" id="btn-types" title="장비 관리">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>장비</button>
+    <button class="btn" id="btn-import" title="파일에서 불러오기">
+      <svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="M8 12l4 4 4-4"/>
+        <path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>불러오기</button>
+    <button class="btn filled" id="btn-new">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>새 도면</button>
+  </div>
+  <div class="scroll" id="list-body"></div>
+</div>
+
+<!-- ═══════════════════════════ 캔버스 -->
+<div class="screen hidden" id="screen-canvas">
+  <div class="topbar">
+    <button class="btn icon-only" id="btn-back" title="뒤로">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h1 id="canvas-title"></h1>
+    <span class="spacer"></span>
+    <button class="btn icon-only" id="btn-undo" title="되돌리기 (⌘Z)">
+      <svg viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/>
+        <path d="M4 12h11a5 5 0 010 10h-3"/></svg></button>
+    <button class="btn icon-only" id="btn-redo" title="다시 하기 (⇧⌘Z)">
+      <svg viewBox="0 0 24 24"><path d="M15 7l5 5-5 5"/>
+        <path d="M20 12H9a5 5 0 000 10h3"/></svg></button>
+    <span class="sep" style="width:1px;height:18px;background:var(--divider)"></span>
+    <button class="btn icon-only" id="btn-arrange-v" title="세로 정렬 (위→아래)">
+      <svg viewBox="0 0 24 24"><path d="M12 4v16"/><path d="M6 20l6-6 6 6"/></svg></button>
+    <button class="btn icon-only" id="btn-arrange-h" title="가로 정렬 (왼쪽→오른쪽)">
+      <svg viewBox="0 0 24 24"><path d="M4 12h16"/><path d="M4 6l6 6-6 6"/></svg></button>
+    <button class="btn icon-only" id="btn-fit" title="화면 맞춤 (두 번 클릭)">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/>
+        <path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg></button>
+    <button class="btn" id="btn-preview" title="인쇄 미리보기">
+      <svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/>
+        <path d="M6 18H4v-6a2 2 0 012-2h12a2 2 0 012 2v6h-2"/>
+        <rect x="6" y="14" width="12" height="7" rx="1"/></svg>인쇄</button>
+    <button class="btn filled" id="btn-add">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>장비</button>
+  </div>
+  <div class="canvas-wrap" id="canvas-wrap">
+    <canvas id="grid"></canvas>
+    <canvas id="edges"></canvas>
+    <div id="nodes"></div>
+    <div class="float-bar hidden" id="float-bar"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ 인쇄 미리보기 -->
+<div class="screen hidden" id="screen-preview">
+  <div class="topbar">
+    <button class="btn icon-only" id="btn-preview-back" title="뒤로">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <h1 id="preview-title"></h1>
+    <span class="spacer"></span>
+    <button class="btn" id="btn-preview-export">
+      <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M8 8l4-4 4 4"/>
+        <path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>JSON</button>
+    <button class="btn filled" id="btn-print">
+      <svg viewBox="0 0 24 24"><path d="M6 9V3h12v6"/>
+        <path d="M6 18H4v-6a2 2 0 012-2h12a2 2 0 012 2v6h-2"/>
+        <rect x="6" y="14" width="12" height="7" rx="1"/></svg>인쇄 / PDF</button>
+  </div>
+
+  <div class="preview-bar">
+    <button class="btn" id="btn-scale">
+      <span id="scale-label">한 장 맞춤</span>
+      <svg viewBox="0 0 24 24"><path d="M8 10l4-4 4 4"/><path d="M8 14l4 4 4-4"/></svg>
+    </button>
+    <span class="stat" id="preview-stat"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="toggle-landscape" title="가로 지면">
+      <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/></svg></button>
+    <button class="btn" id="toggle-portrait" title="세로 지면">
+      <svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/></svg></button>
+  </div>
+
+  <div class="warn-box hidden" id="page-warn" style="margin:0 var(--sp-l)"></div>
+  <div class="pages" id="pages"></div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
