@@ -308,6 +308,11 @@ export class DiagramCanvas {
   }
 
   _down(e) {
+    // 도구막대는 캔버스 위에 떠 있지만 캔버스의 일부가 아니다.
+    // 이걸 걸러내지 않으면 버튼을 누르는 순간 빈 곳 탭으로 처리되어
+    // 선택이 풀리고, 버튼이 사라져 클릭이 도달하지 못한다.
+    if (e.target.closest?.('.float-bar')) return;
+
     this.root.setPointerCapture(e.pointerId);
     this.포인터.set(e.pointerId, this._local(e));
 
