@@ -2,12 +2,13 @@
 // 브라우저 인쇄로 PDF 를 만들므로 별도 PDF 생성기가 필요 없다.
 
 import { Graph, EDGE_KINDS, EDGE_KIND_NAMES } from './topology.js';
+import { tallyEquipment } from './equipment.js';
 import { iconSVG } from './icons.js';
 import { NODE_W, NODE_H, nodeFrame, route, routePoints } from './edge-router.js';
 import { contentBounds } from './layout.js';
 import {
-  drawingRect, headerRect, legendRect,
-  pageGrid, pageTransform, pageLabel,
+  drawingRect, headerRect, legendRect, tallyRect, tallyHeight, tallyColumns,
+  TALLY_ROW_H, pageGrid, pageTransform, pageLabel,
 } from './page.js';
 import { escapeHTML } from './canvas.js';
 
@@ -29,10 +30,12 @@ const EDGE_DASH = { data: '', fiber: '8,4', power: '3,4' };
 
 /**
  * 도면 한 장을 그린다. 여러 장이면 index 를 바꿔가며 부른다.
- * 반환값은 DOM 요소다.
+ * 집계표는 첫 장에만 그린다 — 이어 붙였을 때 같은 표가 여러 번 나오지 않도록.
+ * 다만 자리는 모든 장에서 똑같이 비워 둔다.
  */
-export function renderPage({ title, graph, types, date, pageSize, grid, index }) {
-  const drawing = drawingRect(pageSize);
+export function renderPage({ title, graph, types, date, pageSize,
+                             grid, index, tally = [], tallyH = 0 }) {
+  const drawing = drawingRect(pageSize, tallyH);
   const t = pageTransform(grid, index, drawing);
   const 라벨 = pageLabel(grid, index);
 
@@ -43,6 +46,11 @@ export function renderPage({ title, graph, types, date, pageSize, grid, index })
 
   page.appendChild(머리말(pageSize, title, graph, t.scale, date, 라벨));
   page.appendChild(도면(pageSize, drawing, graph, types, t));
+
+  if (tallyH > 0 && index === 0) {
+    page.appendChild(집계표(pageSize, tally, tallyH));
+  }
+
   page.appendChild(범례(pageSize, graph));
 
   if (graph.nodes.length === 0) {
@@ -84,7 +92,7 @@ function 머리말(pageSize, title, graph, scale, date, 라벨) {
 }
 
 function 도면(pageSize, drawing, graph, types, t) {
-  // 도면이 머리말·범례를 침범하지 않게 잘라낸다.
+  // 도면이 머리말·집계표·범례를 침범하지 않게 잘라낸다.
   // 여러 장으로 나누면 이게 없으면 반드시 넘친다.
   const clip = document.createElement('div');
   clip.className = 'p-clip';
@@ -167,6 +175,42 @@ function 지면카드(n, type, t) {
   return el;
 }
 
+/** 장비 종류별 수량. 아이콘·이름·개수를 여러 칸에 나눠 담는다. */
+function 집계표(pageSize, tally, tallyH) {
+  const r = tallyRect(pageSize, tallyH);
+  const cols = tallyColumns(pageSize);
+  const 합계 = tally.reduce((s, x) => s + x.count, 0);
+
+  const box = document.createElement('div');
+  box.style.cssText =
+    `position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+
+  const 항목 = tally.map(({ type, count, key }) => {
+    const cat = type?.category ?? 'etc';
+    const 이름 = type?.name ?? key;
+    return `<div style="display:flex;align-items:center;gap:5px;
+              height:${TALLY_ROW_H}px;overflow:hidden">
+      <span style="background:${CAT_CHIP[cat]};border-radius:4px;padding:2px;
+        display:flex;flex:none">${iconSVG(type?.iconName ?? '18_etc_gear', 13)}</span>
+      <span style="font-size:9.5px;color:${INK};flex:1;overflow:hidden;
+        white-space:nowrap;text-overflow:ellipsis">${escapeHTML(이름)}</span>
+      <span style="font-size:9.5px;font-weight:700;color:${CAT_ACCENT[cat]};
+        flex:none">${count}</span>
+    </div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="p-rule"></div>
+    <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0 2px">
+      <span style="font-size:10px;font-weight:700;color:${INK}">장비 집계</span>
+      <span style="font-size:9px;color:${SUB}">
+        ${tally.length}종 · 합계 ${합계}대</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(${cols},1fr);
+      column-gap:16px">${항목}</div>`;
+  return box;
+}
+
 function 범례(pageSize, graph) {
   const r = legendRect(pageSize);
   const 있는것 = new Set(graph.edges.map(e => e.kind));
@@ -190,14 +234,20 @@ function 범례(pageSize, graph) {
 }
 
 /** 미리보기에 모든 장을 그린다. */
-export function renderAllPages(container, { title, graph, types, pageSize, scale }) {
-  const drawing = drawingRect(pageSize);
+export function renderAllPages(container,
+    { title, graph, types, pageSize, scale, withTally = true }) {
+  const tally = withTally ? tallyEquipment(graph, types) : [];
+  const tallyH = withTally ? tallyHeight(pageSize, tally.length) : 0;
+
+  const drawing = drawingRect(pageSize, tallyH);
   const grid = pageGrid(contentBounds(graph.nodes), scale, drawing);
   const date = new Date();
 
   const frag = document.createDocumentFragment();
   for (let i = 0; i < grid.pageCount; i += 1) {
-    frag.appendChild(renderPage({ title, graph, types, date, pageSize, grid, index: i }));
+    frag.appendChild(renderPage({
+      title, graph, types, date, pageSize, grid, index: i, tally, tallyH,
+    }));
   }
   container.replaceChildren(frag);
   return grid;

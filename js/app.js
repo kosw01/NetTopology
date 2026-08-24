@@ -3,7 +3,7 @@
 import { Graph, emptyGraph, EDGE_KINDS, EDGE_KIND_NAMES } from './topology.js';
 import {
   BUILT_INS, CATEGORIES, CATEGORY_NAMES, ALL_ICON_NAMES, DEFAULT_ICON,
-  EquipmentEditor, EquipmentMerger,
+  EquipmentEditor, EquipmentMerger, tallyEquipment,
 } from './equipment.js';
 import { iconSVG } from './icons.js';
 import { NODE_W, NODE_H } from './edge-router.js';
@@ -34,6 +34,7 @@ const 상태 = {
   이력: new UndoStack(),
   배율: null,          // null 이면 한 장 맞춤
   가로지면: true,
+  집계넣기: true,
 };
 
 let canvas = null;
@@ -455,6 +456,37 @@ function 장비편집시트(key, onDone) {
   back.querySelector('#type-name').focus();
 }
 
+/** 도면에 쓰인 장비를 종류별로 보여준다. */
+function 집계시트() {
+  const tally = tallyEquipment(상태.graph, Store.types());
+  const 합계 = tally.reduce((s, x) => s + x.count, 0);
+
+  const 묶음 = CATEGORIES.map(cat => {
+    const list = tally.filter(x => (x.type?.category ?? 'etc') === cat);
+    if (list.length === 0) return '';
+    const 소계 = list.reduce((s, x) => s + x.count, 0);
+    return `<div class="group-title">${CATEGORY_NAMES[cat]} · ${소계}대</div>` +
+      list.map(({ type, count, key }) => {
+        const [accVar, chipVar] = CAT_VAR[type?.category ?? 'etc'];
+        return `<div class="pick-row" style="cursor:default">
+          <span class="chip-box" style="background:var(${chipVar})">
+            ${iconSVG(type?.iconName ?? DEFAULT_ICON, 30)}</span>
+          <span class="grow"><span class="name">${escapeHTML(type?.name ?? key)}</span></span>
+          <span style="font-weight:700;color:var(${accVar})">${count}</span>
+        </div>`;
+      }).join('');
+  }).join('');
+
+  시트열기(`
+    <div class="topbar"><h1>장비 집계</h1><span class="spacer"></span>
+      <button class="btn" data-close="1">닫기</button></div>
+    <div class="scroll">
+      ${tally.length === 0
+        ? '<div class="empty" style="height:auto;padding:40px 0">놓인 장비가 없습니다.</div>'
+        : `<div class="note-box">${tally.length}종 · 합계 ${합계}대</div>${묶음}`}
+    </div>`);
+}
+
 // ═══════════════════════════════════════════ 인쇄 미리보기
 
 function 미리보기열기() {
@@ -465,6 +497,7 @@ function 미리보기열기() {
 
   화면전환('preview');
   $('#preview-title').textContent = Store.diagram(상태.도면ID)?.title ?? '';
+  $('#with-tally').checked = 상태.집계넣기;
   미리보기갱신();
 }
 
@@ -478,6 +511,7 @@ function 미리보기갱신() {
     types: Store.types(),
     pageSize,
     scale: 상태.배율,
+    withTally: 상태.집계넣기,
   });
 
   $('#scale-label').textContent = scaleName(상태.배율);
@@ -645,6 +679,7 @@ function 시작() {
   $('#btn-redo').addEventListener('click', 다시하기);
   $('#btn-add').addEventListener('click', 장비고르기시트);
   $('#btn-fit').addEventListener('click', () => canvas.fit());
+  $('#btn-tally').addEventListener('click', 집계시트);
   $('#btn-preview').addEventListener('click', 미리보기열기);
 
   $('#btn-arrange-v').addEventListener('click', () => {
@@ -690,6 +725,10 @@ function 시작() {
   });
   $('#toggle-portrait').addEventListener('click', () => {
     상태.가로지면 = false; 미리보기갱신();
+  });
+  $('#with-tally').addEventListener('change', e => {
+    상태.집계넣기 = e.target.checked;
+    미리보기갱신();
   });
   $('#btn-preview-export').addEventListener('click', () => {
     const d = Store.diagram(상태.도면ID);

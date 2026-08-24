@@ -90,10 +90,36 @@ export function legendRect(page) {
            w: page.w - PAGE_MARGIN * 2, h: LEGEND_H };
 }
 
-/** 도면이 들어갈 자리. 머리말과 범례 사이. */
-export function drawingRect(page) {
+/** 집계표 한 줄 높이와 머리 높이. */
+export const TALLY_ROW_H = 17;
+export const TALLY_HEAD_H = 17;
+
+/** 지면 폭에 따라 집계표를 몇 칸으로 늘어놓을지. */
+export function tallyColumns(page) {
+  return page.w >= 700 ? 4 : 3;
+}
+
+/** 집계표가 차지할 높이. 항목이 없으면 0. */
+export function tallyHeight(page, itemCount) {
+  if (itemCount <= 0) return 0;
+  const rows = Math.ceil(itemCount / tallyColumns(page));
+  return TALLY_HEAD_H + rows * TALLY_ROW_H + 8;
+}
+
+/** 집계표가 놓일 자리. 범례 바로 위. */
+export function tallyRect(page, tallyH) {
+  const bottom = page.h - PAGE_MARGIN - LEGEND_H - 6;
+  return { x: PAGE_MARGIN, y: bottom - tallyH,
+           w: page.w - PAGE_MARGIN * 2, h: tallyH };
+}
+
+/**
+ * 도면이 들어갈 자리. 머리말과 (집계표·범례) 사이.
+ * tallyH 는 모든 장에서 같아야 바둑판 분할이 어긋나지 않는다.
+ */
+export function drawingRect(page, tallyH = 0) {
   const top = PAGE_MARGIN + HEADER_H + 12;
-  const bottom = page.h - PAGE_MARGIN - LEGEND_H - 12;
+  const bottom = page.h - PAGE_MARGIN - LEGEND_H - 12 - tallyH;
   return { x: PAGE_MARGIN, y: top,
            w: page.w - PAGE_MARGIN * 2, h: Math.max(0, bottom - top),
            minX: PAGE_MARGIN, minY: top,

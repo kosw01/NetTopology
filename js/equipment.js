@@ -138,3 +138,29 @@ export const EquipmentMerger = {
     };
   },
 };
+
+/**
+ * 도면에 쓰인 장비를 종류별로 센다.
+ * 분류 순서 → 목록에 담긴 순서로 정렬해 인쇄물에서 순서가 흔들리지 않게 한다.
+ */
+export function tallyEquipment(graph, types) {
+  const 셈 = new Map();
+  for (const n of graph.nodes) {
+    셈.set(n.typeKey, (셈.get(n.typeKey) ?? 0) + 1);
+  }
+
+  const 순서 = new Map(types.map((t, i) => [t.key, i]));
+
+  return [...셈.entries()]
+    .map(([key, count]) => ({
+      key,
+      count,
+      type: types.find(t => t.key === key) ?? null,
+    }))
+    .sort((a, b) => {
+      const ca = CATEGORIES.indexOf(a.type?.category ?? 'etc');
+      const cb = CATEGORIES.indexOf(b.type?.category ?? 'etc');
+      if (ca !== cb) return ca - cb;
+      return (순서.get(a.key) ?? 0) - (순서.get(b.key) ?? 0);
+    });
+}

@@ -2,8 +2,8 @@
 // 실행: node test.mjs
 
 import { Graph, emptyGraph, hasNote, edgeConnects } from './js/topology.js';
-import { BUILT_INS, EquipmentEditor, EquipmentMerger, makeKey, ALL_ICON_NAMES }
-  from './js/equipment.js';
+import { BUILT_INS, EquipmentEditor, EquipmentMerger, makeKey, ALL_ICON_NAMES,
+  tallyEquipment } from './js/equipment.js';
 import { nodeFrame, route, routePoints, distanceToSegment, hitEdge, NODE_W, NODE_H }
   from './js/edge-router.js';
 import {
@@ -17,6 +17,7 @@ import {
   A4_LANDSCAPE, A4_PORTRAIT, preferredPage, drawingRect, headerRect, legendRect,
   pageGrid, pagePosition, pageCanvasRect, pageTransform, pageLabel,
   parseScale, PAGE_MAX_SCALE, PAGE_MARGIN,
+  tallyHeight, tallyRect, tallyColumns, LEGEND_H,
 } from './js/page.js';
 
 let 통과 = 0, 실패 = 0;
@@ -814,6 +815,101 @@ suite('지면 나누기', () => {
     eq(parseScale('999'), null);
     near(parseScale('10'), 0.1);
     near(parseScale('400'), 4.0);
+  });
+});
+
+// ─────────────────────────────────────────── 장비 집계
+
+suite('장비 집계', () => {
+  /** 서버 2, 허브 1, 동적로거 3 */
+  function 도면() {
+    let g = emptyGraph();
+    const 넣기 = (key, n) => {
+      for (let i = 0; i < n; i += 1) {
+        g = Graph.addNode(g, { typeKey: key, label: `${key}${i}`, x: 0, y: 0 }).graph;
+      }
+    };
+    넣기('server', 2);
+    넣기('hub', 1);
+    넣기('dynamic_logger', 3);
+    return g;
+  }
+
+  test('종류별로 수량을 센다', () => {
+    const t = tallyEquipment(도면(), BUILT_INS);
+    eq(t.length, 3);
+    eq(t.find(x => x.key === 'server').count, 2);
+    eq(t.find(x => x.key === 'hub').count, 1);
+    eq(t.find(x => x.key === 'dynamic_logger').count, 3);
+  });
+
+  test('합계가 장비 수와 같다', () => {
+    const g = 도면();
+    eq(tallyEquipment(g, BUILT_INS).reduce((s, x) => s + x.count, 0), g.nodes.length);
+  });
+
+  test('분류 순서대로 정렬된다', () => {
+    const t = tallyEquipment(도면(), BUILT_INS);
+    // 계측(dynamic_logger) 이 통신(server, hub) 보다 먼저
+    eq(t[0].key, 'dynamic_logger');
+  });
+
+  test('장비 정의를 함께 돌려준다', () => {
+    const t = tallyEquipment(도면(), BUILT_INS);
+    eq(t.find(x => x.key === 'server').type.name, '서버');
+  });
+
+  test('정의가 없는 장비도 세되 type 은 null 이다', () => {
+    let g = emptyGraph();
+    g = Graph.addNode(g, { typeKey: '없는것', label: 'X', x: 0, y: 0 }).graph;
+    const t = tallyEquipment(g, BUILT_INS);
+    eq(t.length, 1);
+    eq(t[0].count, 1);
+    eq(t[0].type, null);
+  });
+
+  test('빈 도면은 빈 집계다', () => {
+    eq(tallyEquipment(emptyGraph(), BUILT_INS).length, 0);
+  });
+
+  test('항목이 없으면 집계표 높이가 0 이다', () => {
+    eq(tallyHeight(A4_LANDSCAPE, 0), 0);
+  });
+
+  test('항목이 늘면 집계표가 높아진다', () => {
+    const cols = tallyColumns(A4_LANDSCAPE);
+    expect(tallyHeight(A4_LANDSCAPE, cols * 2) > tallyHeight(A4_LANDSCAPE, cols));
+  });
+
+  test('한 줄 안에 들어가면 높이가 같다', () => {
+    const cols = tallyColumns(A4_LANDSCAPE);
+    eq(tallyHeight(A4_LANDSCAPE, 1), tallyHeight(A4_LANDSCAPE, cols));
+  });
+
+  test('집계표가 들어가면 도면 자리가 줄어든다', () => {
+    const h = tallyHeight(A4_LANDSCAPE, 8);
+    expect(drawingRect(A4_LANDSCAPE, h).h < drawingRect(A4_LANDSCAPE, 0).h);
+  });
+
+  test('집계표는 도면과 범례 사이에 놓인다', () => {
+    const h = tallyHeight(A4_LANDSCAPE, 8);
+    const d = drawingRect(A4_LANDSCAPE, h);
+    const t = tallyRect(A4_LANDSCAPE, h);
+    const l = legendRect(A4_LANDSCAPE);
+    expect(d.y + d.h <= t.y, '도면과 집계표가 겹친다');
+    expect(t.y + t.h <= l.y, '집계표와 범례가 겹친다');
+  });
+
+  test('집계표를 넣어도 여백 안에 머문다', () => {
+    const h = tallyHeight(A4_PORTRAIT, 12);
+    const t = tallyRect(A4_PORTRAIT, h);
+    expect(t.x >= PAGE_MARGIN);
+    expect(t.y >= PAGE_MARGIN);
+    expect(t.y + t.h <= A4_PORTRAIT.h - PAGE_MARGIN);
+  });
+
+  test('세로 지면은 칸이 더 적다', () => {
+    expect(tallyColumns(A4_PORTRAIT) < tallyColumns(A4_LANDSCAPE));
   });
 });
 
